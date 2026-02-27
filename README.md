@@ -1,4 +1,32 @@
-# Welcome to your Lovable project
+# Problem statement:AI-Based Medical Report Simplifier
+
+# Solution:Intelligent Medical Report Interpreter with Risk Highlighting and Personalized Action Suggestions with Long-term health monitoring system
+
+# Features:
+1.image/pdf to report analysis
+
+2.risk analysis(low,medim,high)
+
+3.action suggestions
+
+4.health report expiry tracking
+
+5.gamified remainders(streaks,leader board)
+
+# Tech stack and tools used:
+Frontend + Backend → Lovable
+
+OCR → Google Vision API
+
+AI → Claude / OpenAI
+
+Database → Lovable DB
+
+Scheduler → Loavble backend workflows
+
+Email → SendGrid
+
+Charts → Lovable plugin
 
 ## Project info
 
@@ -63,6 +91,8 @@ This project is built with:
 ## How can I deploy this project?
 
 Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+
+Simply open Vercel connect your Github repo and click deploy.so,that ur website will be deployed on a single click
 
 ## Can I connect a custom domain to my Lovable project?
 
