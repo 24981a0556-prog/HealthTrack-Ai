@@ -3,15 +3,15 @@
 # Solution:Intelligent Medical Report Interpreter with Risk Highlighting and Personalized Action Suggestions with Long-term health monitoring system
 
 # Features:
-1.image/pdf to report analysis
+1.Image/pdf to report analysis
 
-2.risk analysis(low,medim,high)
+2.Risk analysis(low,medim,high)
 
-3.action suggestions
+3.Action suggestions
 
-4.health report expiry tracking
+4.Health report expiry tracking
 
-5.gamified remainders(streaks,leader board)
+5.Gamified remainders(streaks,leader board)
 
 # Tech stack and tools used:
 Frontend + Backend → Lovable
@@ -27,6 +27,34 @@ Scheduler → Loavble backend workflows
 Email → SendGrid
 
 Charts → Lovable plugin
+
+# architecture
+
+User → Web App (UI)
+  
+   ↓
+
+File Upload (Storage)
+
+      ↓
+
+OCR Extraction
+        
+               ↓
+        
+Risk Engine (Rules + Weights)
+
+        ↓
+        
+AI Layer (Explanation + Action Plan)
+
+        ↓
+        
+Database (User Health Timeline)
+
+        ↓
+        
+Scheduler (Expiry + Reminders)
 
 ## Project info
 
