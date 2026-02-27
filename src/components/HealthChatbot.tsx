@@ -32,14 +32,22 @@ export default function HealthChatbot() {
     let assistantSoFar = "";
 
     try {
-      const resp = await fetch(CHAT_URL, {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast.error("Please log in to use the health assistant");
+        setIsLoading(false);
+        return;
+      }
+
+      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/health-chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: `Bearer ${session.access_token}`,
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         },
         body: JSON.stringify({
-          messages: [...messages, userMsg].filter((m) => m.role !== "assistant" || messages.indexOf(m) > 0 || true).map((m) => ({
+          messages: [...messages, userMsg].map((m) => ({
             role: m.role,
             content: m.content,
           })),
