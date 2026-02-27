@@ -9,6 +9,7 @@ import ExpiryCountdown from "@/components/ExpiryCountdown";
 import BiomarkerCard from "@/components/BiomarkerCard";
 import { Button } from "@/components/ui/button";
 import { Upload, FileText, Crown } from "lucide-react";
+import BiomarkerTrendChart from "@/components/BiomarkerTrendChart";
 import { toast } from "sonner";
 import { FREE_REPORT_LIMIT } from "@/lib/constants";
 
@@ -133,6 +134,10 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+              )}
+
+              {isPro && reports.length >= 2 && biomarkers.length > 0 && (
+                <BiomarkerTrendChart biomarkers={biomarkers} reports={reports} />
               )}
 
               {latestBiomarkers.length > 0 && (
