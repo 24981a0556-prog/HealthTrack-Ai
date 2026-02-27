@@ -10,6 +10,7 @@ import BiomarkerCard from "@/components/BiomarkerCard";
 import { Button } from "@/components/ui/button";
 import { Upload, FileText, Crown } from "lucide-react";
 import BiomarkerTrendChart from "@/components/BiomarkerTrendChart";
+import HealthChatbot from "@/components/HealthChatbot";
 import { toast } from "sonner";
 import { FREE_REPORT_LIMIT } from "@/lib/constants";
 
@@ -212,6 +213,7 @@ export default function Dashboard() {
           </p>
         </div>
       </div>
+      {reports.length > 0 && <HealthChatbot />}
     </div>
   );
 }

@@ -162,7 +162,7 @@ export default function HealthChatbot() {
                 )}
               </div>
             ))}
-            {isLoading && assistantSoFar === "" && (
+            {isLoading && messages[messages.length - 1]?.role === "user" && (
               <div className="flex gap-2">
                 <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
                   <Bot className="h-4 w-4 text-primary" />
