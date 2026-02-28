@@ -27,7 +27,7 @@ serve(async (req) => {
 
     // Fetch user's latest biomarkers and reports for context
     const [reportsRes, biomarkersRes] = await Promise.all([
-      supabase.from("reports").select("health_score, risk_level, ai_explanation, suggestions, created_at")
+      supabase.from("reports").select("health_score, risk_level, ai_explanation, suggestions, category_scores, created_at")
         .eq("user_id", userData.user.id).order("created_at", { ascending: false }).limit(3),
       supabase.from("biomarkers").select("name, value, unit, status, created_at")
         .eq("user_id", userData.user.id).order("created_at", { ascending: false }).limit(15),

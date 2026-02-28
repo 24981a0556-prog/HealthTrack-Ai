@@ -55,6 +55,30 @@ export type Database = {
           },
         ]
       }
+      chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -88,6 +112,7 @@ export type Database = {
       reports: {
         Row: {
           ai_explanation: string | null
+          category_scores: Json | null
           created_at: string
           expires_at: string
           extracted_text: string | null
@@ -102,6 +127,7 @@ export type Database = {
         }
         Insert: {
           ai_explanation?: string | null
+          category_scores?: Json | null
           created_at?: string
           expires_at?: string
           extracted_text?: string | null
@@ -116,6 +142,7 @@ export type Database = {
         }
         Update: {
           ai_explanation?: string | null
+          category_scores?: Json | null
           created_at?: string
           expires_at?: string
           extracted_text?: string | null

@@ -6,6 +6,55 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// ── Reference ranges for deterministic scoring ──
+const RANGES: Record<string, { normal: [number, number]; mild: [number, number][]; moderate: [number, number][]; unit: string }> = {
+  Hemoglobin:          { normal: [12, 17],     mild: [[11, 11.9], [17.1, 18]],   moderate: [[8, 10.9], [18.1, 20]],   unit: "g/dL" },
+  PCV:                 { normal: [38.3, 48.6], mild: [[35, 38.2], [48.7, 52]],   moderate: [[30, 34.9], [52.1, 55]],  unit: "%" },
+  RBC:                 { normal: [4.5, 5.5],   mild: [[4, 4.4], [5.6, 6]],       moderate: [[3, 3.9], [6.1, 7]],      unit: "M/uL" },
+  WBC:                 { normal: [4, 11],      mild: [[3, 3.9], [11.1, 15]],     moderate: [[2, 2.9], [15.1, 20]],    unit: "K/uL" },
+  Platelets:           { normal: [150, 400],   mild: [[100, 149], [401, 500]],   moderate: [[50, 99], [501, 600]],    unit: "K/uL" },
+  HbA1c:               { normal: [0, 5.7],     mild: [[5.7, 6.4]],               moderate: [[6.5, 8]],                 unit: "%" },
+  "Fasting Blood Sugar":{ normal: [70, 100],   mild: [[100, 125]],               moderate: [[126, 200]],               unit: "mg/dL" },
+  "Total Cholesterol": { normal: [0, 200],     mild: [[200, 239]],               moderate: [[240, 300]],               unit: "mg/dL" },
+  LDL:                 { normal: [0, 100],     mild: [[100, 159]],               moderate: [[160, 190]],               unit: "mg/dL" },
+  HDL:                 { normal: [60, 999],    mild: [[40, 59]],                  moderate: [[20, 39]],                 unit: "mg/dL" },
+  Triglycerides:       { normal: [0, 150],     mild: [[150, 199]],               moderate: [[200, 499]],               unit: "mg/dL" },
+  Creatinine:          { normal: [0.7, 1.3],   mild: [[1.4, 1.9]],               moderate: [[2, 4]],                   unit: "mg/dL" },
+  ALT:                 { normal: [7, 56],      mild: [[57, 100]],                moderate: [[101, 200]],               unit: "U/L" },
+  AST:                 { normal: [10, 40],     mild: [[41, 100]],                moderate: [[101, 200]],               unit: "U/L" },
+};
+
+function inRange(v: number, r: [number, number]): boolean {
+  return v >= r[0] && v <= r[1];
+}
+
+function scoreBiomarker(name: string, value: number): { score: number; status: string } {
+  const ref = RANGES[name];
+  if (!ref) return { score: 100, status: "Normal" };
+
+  if (inRange(value, ref.normal)) return { score: 100, status: "Normal" };
+  for (const r of ref.mild) { if (inRange(value, r)) return { score: 70, status: "Mild" }; }
+  for (const r of ref.moderate) { if (inRange(value, r)) return { score: 40, status: "High" }; }
+  return { score: 10, status: "Critical" };
+}
+
+function calcCategory(scores: Record<string, number>, weights: [string, number][]): number | null {
+  let total = 0, wSum = 0;
+  for (const [name, w] of weights) {
+    if (scores[name] !== undefined) { total += scores[name] * w; wSum += w; }
+  }
+  return wSum > 0 ? Math.round(total / wSum) : null;
+}
+
+function interpret(score: number): string {
+  if (score >= 80) return "Good";
+  if (score >= 60) return "Moderate Risk";
+  if (score >= 40) return "High Risk";
+  return "Critical";
+}
+
+const BIOMARKER_LIST = Object.keys(RANGES);
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -23,18 +72,16 @@ serve(async (req) => {
     const { reportId } = await req.json();
     if (!reportId) throw new Error("reportId required");
 
-    // Fetch the report
     const { data: report, error: reportErr } = await supabaseClient
       .from("reports").select("*").eq("id", reportId).eq("user_id", userData.user.id).single();
     if (reportErr || !report) throw new Error("Report not found");
 
-    // Download the file to extract text (simulate OCR with AI vision)
+    // Download file
     const { data: fileData } = await supabaseClient.storage
       .from("medical-reports").download(report.file_path);
 
     let fileContent = "";
     if (fileData) {
-      // Convert to base64 for AI processing (chunked to avoid stack overflow)
       const arrayBuffer = await fileData.arrayBuffer();
       const bytes = new Uint8Array(arrayBuffer);
       let binary = "";
@@ -48,12 +95,13 @@ serve(async (req) => {
       fileContent = btoa(binary);
     }
 
-    // Use AI to extract biomarkers
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
 
     const isPdf = report.file_name.toLowerCase().endsWith(".pdf");
     const mimeType = isPdf ? "application/pdf" : "image/jpeg";
+
+    const biomarkerListStr = BIOMARKER_LIST.map(n => `{"name": "${n}", "value": <number or null>, "unit": "${RANGES[n].unit}"}`).join(",\n    ");
 
     const messages: any[] = [
       {
@@ -62,11 +110,7 @@ serve(async (req) => {
 Return a JSON object with this exact structure:
 {
   "biomarkers": [
-    {"name": "HbA1c", "value": <number or null>, "unit": "%"},
-    {"name": "Cholesterol", "value": <number or null>, "unit": "mg/dL"},
-    {"name": "HDL", "value": <number or null>, "unit": "mg/dL"},
-    {"name": "LDL", "value": <number or null>, "unit": "mg/dL"},
-    {"name": "Hemoglobin", "value": <number or null>, "unit": "g/dL"}
+    ${biomarkerListStr}
   ],
   "summary": "Brief summary of the report"
 }
@@ -78,14 +122,14 @@ If a value is not found, set it to null. Only return valid JSON, nothing else.`
       messages.push({
         role: "user",
         content: [
-          { type: "text", text: "Extract biomarker values from this medical report image." },
+          { type: "text", text: "Extract all biomarker values from this medical report image." },
           { type: "image_url", image_url: { url: `data:${mimeType};base64,${fileContent}` } }
         ]
       });
     } else {
       messages.push({
         role: "user",
-        content: `Extract biomarker values from this medical report. File: ${report.file_name}. If you cannot read the file, generate realistic sample values for demonstration purposes and note this in the summary.`
+        content: `Extract all biomarker values from this medical report. File: ${report.file_name}. If you cannot read the file, generate realistic sample values for demonstration purposes and note this in the summary.`
       });
     }
 
@@ -95,10 +139,7 @@ If a value is not found, set it to null. Only return valid JSON, nothing else.`
         Authorization: `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages,
-      }),
+      body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages }),
     });
 
     if (!aiResponse.ok) {
@@ -109,55 +150,49 @@ If a value is not found, set it to null. Only return valid JSON, nothing else.`
 
     const aiData = await aiResponse.json();
     let content = aiData.choices?.[0]?.message?.content ?? "";
-
-    // Parse JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     let parsed: { biomarkers: { name: string; value: number | null; unit: string }[]; summary: string } = { biomarkers: [], summary: "" };
     if (jsonMatch) {
       try { parsed = JSON.parse(jsonMatch[0]); } catch {}
     }
 
-    // Calculate risk score
-    const thresholds: Record<string, { high: number; weight: number }> = {
-      HbA1c: { high: 6.5, weight: 20 },
-      Cholesterol: { high: 200, weight: 15 },
-      HDL: { high: 39, weight: 10 },  // low HDL is bad
-      LDL: { high: 130, weight: 15 },
-      Hemoglobin: { high: 17.5, weight: 10 },
-    };
-
-    let totalPenalty = 0;
-    const biomarkersToInsert: any[] = [];
+    // ── Deterministic scoring ──
+    const bmScores: Record<string, number> = {};
+    const biomarkersToInsert: { report_id: string; user_id: string; name: string; value: number; unit: string; status: string }[] = [];
 
     for (const bm of parsed.biomarkers) {
       if (bm.value == null) continue;
-
-      let status = "Normal";
-      const threshold = thresholds[bm.name];
-      if (threshold) {
-        if (bm.name === "HDL") {
-          status = bm.value < 40 ? "Low" : bm.value < 60 ? "Borderline" : "Normal";
-          if (bm.value < 40) totalPenalty += threshold.weight;
-        } else {
-          status = bm.value > threshold.high ? "High" : bm.value > threshold.high * 0.9 ? "Borderline" : "Normal";
-          if (bm.value > threshold.high) totalPenalty += threshold.weight;
-        }
-      }
-
+      const { score, status } = scoreBiomarker(bm.name, bm.value);
+      bmScores[bm.name] = score;
       biomarkersToInsert.push({
         report_id: reportId,
         user_id: userData.user.id,
         name: bm.name,
         value: bm.value,
-        unit: bm.unit,
+        unit: bm.unit || RANGES[bm.name]?.unit || "",
         status,
       });
     }
 
-    const healthScore = Math.max(0, Math.min(100, 100 - totalPenalty));
-    const riskLevel = healthScore >= 80 ? "Low" : healthScore >= 50 ? "Moderate" : "High";
+    // Category scores
+    const anemia = calcCategory(bmScores, [["Hemoglobin", 0.5], ["PCV", 0.3], ["RBC", 0.2]]);
+    const immunity = calcCategory(bmScores, [["WBC", 0.6], ["Platelets", 0.4]]);
+    const heartRisk = calcCategory(bmScores, [["LDL", 0.3], ["HDL", 0.25], ["Triglycerides", 0.25], ["Total Cholesterol", 0.2]]);
+    const diabetesRisk = calcCategory(bmScores, [["HbA1c", 0.6], ["Fasting Blood Sugar", 0.4]]);
+    const organHealth = calcCategory(bmScores, [["Creatinine", 0.4], ["ALT", 0.3], ["AST", 0.3]]);
 
-    // Get AI explanation
+    const categoryScores: Record<string, { score: number; interpretation: string }> = {};
+    const validCats: number[] = [];
+    if (anemia !== null) { categoryScores.anemia = { score: anemia, interpretation: interpret(anemia) }; validCats.push(anemia); }
+    if (immunity !== null) { categoryScores.immunity = { score: immunity, interpretation: interpret(immunity) }; validCats.push(immunity); }
+    if (heartRisk !== null) { categoryScores.heart_risk = { score: heartRisk, interpretation: interpret(heartRisk) }; validCats.push(heartRisk); }
+    if (diabetesRisk !== null) { categoryScores.diabetes_risk = { score: diabetesRisk, interpretation: interpret(diabetesRisk) }; validCats.push(diabetesRisk); }
+    if (organHealth !== null) { categoryScores.organ_health = { score: organHealth, interpretation: interpret(organHealth) }; validCats.push(organHealth); }
+
+    const healthScore = validCats.length > 0 ? Math.round(validCats.reduce((a, b) => a + b, 0) / validCats.length) : 50;
+    const riskLevel = interpret(healthScore).replace(" Risk", "").replace("Good", "Low");
+
+    // AI explanation with category context
     const explainResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -169,15 +204,18 @@ If a value is not found, set it to null. Only return valid JSON, nothing else.`
         messages: [
           {
             role: "system",
-            content: "You are a friendly health advisor. Explain medical results in simple language. Be encouraging but honest. Always end with a note to consult a doctor."
+            content: "You are a friendly health advisor. Explain medical results in simple language. Be encouraging but honest. Do not diagnose. Always recommend consulting a doctor."
           },
           {
             role: "user",
-            content: `Health Score: ${healthScore}/100 (${riskLevel} Risk). Biomarkers: ${JSON.stringify(biomarkersToInsert.map(b => `${b.name}: ${b.value} ${b.unit} (${b.status})`))}.
+            content: `Health Score: ${healthScore}/100 (${riskLevel}).
+Category Scores: ${JSON.stringify(categoryScores)}
+Biomarkers: ${JSON.stringify(biomarkersToInsert.map(b => `${b.name}: ${b.value} ${b.unit} (${b.status})`))}.
 
 Provide:
 1. A 2-3 sentence explanation of these results in simple language.
 2. Exactly 3 actionable lifestyle suggestions.
+3. One sentence on when to consult a doctor based on these results.
 
 Format as JSON: {"explanation": "...", "suggestions": ["...", "...", "..."]}`
           }
@@ -206,16 +244,17 @@ Format as JSON: {"explanation": "...", "suggestions": ["...", "...", "..."]}`
       await supabaseClient.from("biomarkers").insert(biomarkersToInsert);
     }
 
-    // Update report
+    // Update report with category scores
     await supabaseClient.from("reports").update({
       health_score: healthScore,
       risk_level: riskLevel,
       ai_explanation: explanation,
       suggestions,
       extracted_text: parsed.summary || "Report analyzed",
+      category_scores: categoryScores,
     }).eq("id", reportId);
 
-    return new Response(JSON.stringify({ success: true, healthScore, riskLevel }), {
+    return new Response(JSON.stringify({ success: true, healthScore, riskLevel, categoryScores }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

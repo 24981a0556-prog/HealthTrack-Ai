@@ -1,7 +1,7 @@
 export const STRIPE_PRO_PRICE_ID = "price_1T5OujADU3LbqoqZhNpln3g3";
 export const STRIPE_PRO_PRODUCT_ID = "prod_U3VwjZNd9kN9xm";
 
-export const FREE_REPORT_LIMIT = 2;
+export const FREE_REPORT_LIMIT = 5;
 
 export const BIOMARKER_THRESHOLDS = {
   HbA1c: { normal: 5.7, borderline: 6.4, high: 6.5, unit: "%", weight: 20 },

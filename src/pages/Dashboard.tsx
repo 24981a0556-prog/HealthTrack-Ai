@@ -7,12 +7,21 @@ import HealthScoreGauge from "@/components/HealthScoreGauge";
 import StreakCard from "@/components/StreakCard";
 import ExpiryCountdown from "@/components/ExpiryCountdown";
 import BiomarkerCard from "@/components/BiomarkerCard";
+import CategoryScoreCard from "@/components/CategoryScoreCard";
 import { Button } from "@/components/ui/button";
 import { Upload, FileText, Crown } from "lucide-react";
 import BiomarkerTrendChart from "@/components/BiomarkerTrendChart";
 import HealthChatbot from "@/components/HealthChatbot";
 import { toast } from "sonner";
 import { FREE_REPORT_LIMIT } from "@/lib/constants";
+
+const CATEGORY_META: Record<string, { label: string; icon: string }> = {
+  anemia: { label: "Anemia", icon: "🩸" },
+  immunity: { label: "Immunity", icon: "🛡️" },
+  heart_risk: { label: "Heart Risk", icon: "❤️" },
+  diabetes_risk: { label: "Diabetes Risk", icon: "🍬" },
+  organ_health: { label: "Organ Health", icon: "🫁" },
+};
 
 export default function Dashboard() {
   const { user, loading, isPro } = useAuth();
@@ -29,13 +38,11 @@ export default function Dashboard() {
   const fetchData = useCallback(async () => {
     if (!user) return;
     setLoadingData(true);
-
     const [reportsRes, biomarkersRes, streakRes] = await Promise.all([
       supabase.from("reports").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("biomarkers").select("*").eq("user_id", user.id),
       supabase.from("streaks").select("*").eq("user_id", user.id).single(),
     ]);
-
     if (reportsRes.data) setReports(reportsRes.data);
     if (biomarkersRes.data) setBiomarkers(biomarkersRes.data);
     if (streakRes.data) setStreak(streakRes.data);
@@ -48,21 +55,14 @@ export default function Dashboard() {
     if (!user || !streak) return;
     const today = new Date().toISOString().split("T")[0];
     if (streak.last_checkin_date === today) return;
-
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const isConsecutive = streak.last_checkin_date === yesterday.toISOString().split("T")[0];
-
     const newStreak = isConsecutive ? streak.current_streak + 1 : 1;
     const newLongest = Math.max(newStreak, streak.longest_streak);
-
     const { error } = await supabase.from("streaks").update({
-      current_streak: newStreak,
-      longest_streak: newLongest,
-      total_points: streak.total_points + 10,
-      last_checkin_date: today,
+      current_streak: newStreak, longest_streak: newLongest, total_points: streak.total_points + 10, last_checkin_date: today,
     }).eq("user_id", user.id);
-
     if (error) { toast.error("Check-in failed"); return; }
     toast.success("+10 points! 🎉");
     fetchData();
@@ -70,6 +70,7 @@ export default function Dashboard() {
 
   const latestReport = reports[0];
   const latestBiomarkers = latestReport ? biomarkers.filter(b => b.report_id === latestReport.id) : [];
+  const categoryScores = latestReport?.category_scores as Record<string, { score: number; interpretation: string }> | null;
   const today = new Date().toISOString().split("T")[0];
   const canCheckin = streak ? streak.last_checkin_date !== today : true;
 
@@ -114,7 +115,6 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="grid lg:grid-cols-3 gap-6">
-            {/* Left: Score + Biomarkers */}
             <div className="lg:col-span-2 space-y-6">
               {latestReport && (
                 <div className="glass-card rounded-xl p-6">
@@ -126,13 +126,24 @@ export default function Dashboard() {
                       {latestReport.suggestions && (
                         <ul className="space-y-1">
                           {latestReport.suggestions.map((s: string, i: number) => (
-                            <li key={i} className="text-sm flex gap-2">
-                              <span className="text-primary">•</span> {s}
-                            </li>
+                            <li key={i} className="text-sm flex gap-2"><span className="text-primary">•</span> {s}</li>
                           ))}
                         </ul>
                       )}
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Category Scores */}
+              {categoryScores && Object.keys(categoryScores).length > 0 && (
+                <div>
+                  <h3 className="font-display font-semibold text-lg mb-3">Health Categories</h3>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {Object.entries(categoryScores).map(([key, val]) => {
+                      const meta = CATEGORY_META[key] || { label: key, icon: "📊" };
+                      return <CategoryScoreCard key={key} name={meta.label} score={val.score} interpretation={val.interpretation} icon={meta.icon} />;
+                    })}
                   </div>
                 </div>
               )}
@@ -181,19 +192,12 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Right: Streak + Expiry */}
+            {/* Right sidebar */}
             <div className="space-y-6">
               {streak && (
-                <StreakCard
-                  currentStreak={streak.current_streak}
-                  totalPoints={streak.total_points}
-                  longestStreak={streak.longest_streak}
-                  onCheckin={handleCheckin}
-                  canCheckin={canCheckin}
-                />
+                <StreakCard currentStreak={streak.current_streak} totalPoints={streak.total_points} longestStreak={streak.longest_streak} onCheckin={handleCheckin} canCheckin={canCheckin} />
               )}
               {latestReport && <ExpiryCountdown expiresAt={latestReport.expires_at} />}
-
               {!isPro && (
                 <div className="rounded-xl border-2 border-primary/20 bg-primary/5 p-6 text-center space-y-3">
                   <Crown className="h-8 w-8 mx-auto text-primary" />
@@ -206,11 +210,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Disclaimer */}
         <div className="rounded-xl bg-muted p-4 text-center">
-          <p className="text-xs text-muted-foreground">
-            ⚕️ This tool provides informational insights and does not replace professional medical advice.
-          </p>
+          <p className="text-xs text-muted-foreground">⚕️ This tool provides informational insights and does not replace professional medical advice.</p>
         </div>
       </div>
       {reports.length > 0 && <HealthChatbot />}
