@@ -112,7 +112,7 @@ If a value is not found, set it to null. Only return valid JSON, nothing else.`
 
     // Parse JSON from response
     const jsonMatch = content.match(/\{[\s\S]*\}/);
-    let parsed = { biomarkers: [], summary: "" };
+    let parsed: { biomarkers: { name: string; value: number | null; unit: string }[]; summary: string } = { biomarkers: [], summary: "" };
     if (jsonMatch) {
       try { parsed = JSON.parse(jsonMatch[0]); } catch {}
     }
