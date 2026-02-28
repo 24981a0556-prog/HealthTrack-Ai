@@ -8,7 +8,8 @@ interface BiomarkerCardProps {
 export default function BiomarkerCard({ name, value, unit, status }: BiomarkerCardProps) {
   const statusColor =
     status === "Normal" ? "bg-success/10 text-success" :
-    status === "Borderline" ? "bg-warning/10 text-warning" :
+    status === "Mild" || status === "Borderline" ? "bg-warning/10 text-warning" :
+    status === "Critical" ? "bg-destructive/20 text-destructive" :
     "bg-destructive/10 text-destructive";
 
   return (
